@@ -1,4 +1,4 @@
-/* Copyright (C) 2012 Kristian Lauszus, TKJ Electronics. All rights reserved.
+/* Copyright (C) 2019 Flavio Müller. All rights reserved.
 
  This software may be distributed and modified under the terms of the GNU
  General Public License version 2 (GPL2) as published by the Free Software
@@ -7,19 +7,14 @@
  on this software must also be made publicly available under the terms of
  the GPL2 ("Copyleft").
 
- Contact information
- -------------------
-
- Kristian Lauszus, TKJ Electronics
- Web      :  http://www.tkjelectronics.com
- e-mail   :  kristianl@tkjelectronics.com
+e-mail: flavio.flmf@gmail.com
  */
 
 #include <Wire.h>
 #include <Kalman.h> // Source: https://github.com/TKJElectronics/KalmanFilter
 #include <SoftwareSerial.h>
 
-SoftwareSerial bluetooth(2, 3);
+SoftwareSerial bluetooth(2, 3); //portas de conexão TX/RX HC-05
 
 #define RESTRICT_PITCH // Comment out to restrict roll to ±90deg instead - please read: http://www.freescale.com/files/sensors/doc/app_note/AN3461.pdf
 
@@ -47,16 +42,17 @@ double kalX, kalY, kalZ; // Para alguma coisa
 uint32_t timer;
 uint8_t i2cData[14]; // Buffer for I2C data
 
-// TODO: Make calibration routine
+//Make calibration routine
 
-void setup() {
+void setup()
+{
   Serial.begin(9600);
   Wire.begin();
-#if ARDUINO >= 157
-  Wire.setClock(400000UL); // Set I2C frequency to 400kHz
-#else
-  TWBR = ((F_CPU / 400000UL) - 16) / 2; // Set I2C frequency to 400kHz
-#endif
+  #if ARDUINO >= 157
+    Wire.setClock(400000UL); // Set I2C frequency to 400kHz
+  #else
+    TWBR = ((F_CPU / 400000UL) - 16) / 2; // Set I2C frequency to 400kHz
+  #endif
 
   i2cData[0] = 7; // Set the sample rate to 1000Hz - 8kHz/(7+1) = 1000Hz
   i2cData[1] = 0x00; // Disable FSYNC and set 260 Hz Acc filtering, 256 Hz Gyro filtering, 8 KHz sampling
@@ -66,10 +62,11 @@ void setup() {
   while (i2cWrite(0x6B, 0x01, true)); // PLL with X axis gyroscope reference and disable sleep mode
 
   while (i2cRead(0x75, i2cData, 1));
-  if (i2cData[0] != 0x68) { // Read "WHO_AM_I" register
-    Serial.print(F("Error reading sensor"));
-    while (1);
-  }
+    if (i2cData[0] != 0x68)
+    {
+      Serial.print(F("Error reading sensor"));
+      while (1);
+    }
 
   delay(200); // Wait for sensor to stabilize
 
@@ -82,16 +79,16 @@ void setup() {
   // Source: http://www.freescale.com/files/sensors/doc/app_note/AN3461.pdf eq. 25 and eq. 26
   // atan2 outputs the value of -π to π (radians) - see http://en.wikipedia.org/wiki/Atan2
   // It is then converted from radians to degrees
-#ifdef RESTRICT_PITCH // Eq. 25 and 26
-  double roll  = atan2(accY, accZ) * RAD_TO_DEG;
-  double pitch = atan(-accX / sqrt(accY * accY + accZ * accZ)) * RAD_TO_DEG;
-  double yaw = atan(accZ / sqrt(accX * accX + accY * accY)) * RAD_TO_DEG;
+  #ifdef RESTRICT_PITCH // Eq. 25 and 26
+    double roll  = atan2(accY, accZ) * RAD_TO_DEG;
+    double pitch = atan(-accX / sqrt(accY * accY + accZ * accZ)) * RAD_TO_DEG;
+    double yaw = atan(accZ / sqrt(accX * accX + accY * accY)) * RAD_TO_DEG;
   
-#else // Eq. 28 and 29
-  double roll  = atan(accY / sqrt(accX * accX + accZ * accZ)) * RAD_TO_DEG;
-  double pitch = atan2(-accX, accZ) * RAD_TO_DEG;
-  double yaw = atan(accZ / sqrt(accX * accX + accY * accY)) * RAD_TO_DEG;
-#endif
+  #else // Eq. 28 and 29
+    double roll  = atan(accY / sqrt(accX * accX + accZ * accZ)) * RAD_TO_DEG;
+    double pitch = atan2(-accX, accZ) * RAD_TO_DEG;
+    double yaw = atan(accZ / sqrt(accX * accX + accY * accY)) * RAD_TO_DEG;
+  #endif
 
   kalmanX.setAngle(roll); // Definir ângulo inicial
   kalmanY.setAngle(pitch);
@@ -108,7 +105,8 @@ void setup() {
   timer = micros();
 }
 
-void loop() {
+void loop() 
+{
   /* Update all the values */
   while (i2cRead(0x3B, i2cData, 14));
   accX = (int16_t)((i2cData[0] << 8) | i2cData[1]);
@@ -125,34 +123,36 @@ void loop() {
   // Source: http://www.freescale.com/files/sensors/doc/app_note/AN3461.pdf eq. 25 and eq. 26
   // atan2 outputs the value of -π to π (radians) - see http://en.wikipedia.org/wiki/Atan2
   // It is then converted from radians to degrees
-#ifdef RESTRICT_PITCH // Eq. 25 and 26
-  double roll  = atan2(accY, accZ) * RAD_TO_DEG;
-  double pitch = atan(-accX / sqrt(accY * accY + accZ * accZ)) * RAD_TO_DEG;
-  double yaw = 0;
-#else // Eq. 28 and 29
-  double roll  = atan(accY / sqrt(accX * accX + accZ * accZ)) * RAD_TO_DEG;
-  double pitch = atan2(-accX, accZ) * RAD_TO_DEG;
-  double yaw = 0;
-#endif
+  #ifdef RESTRICT_PITCH // Eq. 25 and 26
+    double roll  = atan2(accY, accZ) * RAD_TO_DEG;
+    double pitch = atan(-accX / sqrt(accY * accY + accZ * accZ)) * RAD_TO_DEG;
+    double yaw = 0;
+  #else // Eq. 28 and 29
+    double roll  = atan(accY / sqrt(accX * accX + accZ * accZ)) * RAD_TO_DEG;
+    double pitch = atan2(-accX, accZ) * RAD_TO_DEG;
+    double yaw = 0;
+  #endif
 
   double gyroXrate = gyroX / 131.0; // Convert to deg/s
   double gyroYrate = gyroY / 131.0; // Convert to deg/s
   double gyroZrate = gyroZ / 131.0; // Convert to deg/s
 
-#ifdef RESTRICT_PITCH
-  // This fixes the transition problem when the accelerometer angle jumps between -180 and 180 degrees
-  if ((roll < -90 && kalAngleX > 90) || (roll > 90 && kalAngleX < -90)) {
-    kalmanX.setAngle(roll);
-    compAngleX = roll;
-    kalAngleX = roll;
-    gyroXangle = roll;
-  } else
-    kalAngleX = kalmanX.getAngle(roll, gyroXrate, dt); // Calculate the angle using a Kalman filter
+  #ifdef RESTRICT_PITCH
+    // This fixes the transition problem when the accelerometer angle jumps between -180 and 180 degrees
+    if ((roll < -90 && kalAngleX > 90) || (roll > 90 && kalAngleX < -90)) 
+    {
+      kalmanX.setAngle(roll);
+      compAngleX = roll;
+      kalAngleX = roll;
+      gyroXangle = roll;
+    }
+    else
+      kalAngleX = kalmanX.getAngle(roll, gyroXrate, dt); // Calculate the angle using a Kalman filter
 
-  if (abs(kalAngleX) > 90)
-    gyroYrate = -gyroYrate; // Invert rate, so it fits the restriced accelerometer reading
-  kalAngleY = kalmanY.getAngle(pitch, gyroYrate, dt);
-#else
+    if (abs(kalAngleX) > 90)
+      gyroYrate = -gyroYrate; // Invert rate, so it fits the restriced accelerometer reading
+      kalAngleY = kalmanY.getAngle(pitch, gyroYrate, dt);
+  #else
   // This fixes the transition problem when the accelerometer angle jumps between -180 and 180 degrees
   if ((pitch < -90 && kalAngleY > 90) || (pitch > 90 && kalAngleY < -90)) {
     kalmanY.setAngle(pitch);
@@ -257,10 +257,8 @@ void loop() {
   bluetooth.print(kalAngleY);bluetooth.println("\t");
 #endif
 
-
 #if 0 // Set to 1 to print the temperature
   Serial.print("\t");
-
   double temperature = (double)tempRaw / 340.0 + 36.53;//Equação da temperatura em Cº de acordo com o datasheet
   Serial.print(temperature); Serial.print("\t");
 #endif
